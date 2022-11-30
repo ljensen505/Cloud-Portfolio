@@ -1,0 +1,31 @@
+{% extends "layout.html" %}
+{% block title %}Welcome!{% endblock %}
+{% block content %}
+<div class="card text-white bg-secondary mb-3" >
+    <div style="color: #E1D89F" class="card-header">Hello {{ name }}<br>{{ user_id }}</div>
+  <div style="color: #E1D89F" class="card-body">
+      <h5 class="card-title">Your JWT:
+          <br><button style="margin-top: 4px" id="btn" type="button" class="btn btn-info btn-sm" onclick="copyContent()">Copy to Clipboard</button>
+      </h5>
+      <p id="jwt" class="card-text">{{ id_token }}</p>
+  </div>
+</div>
+
+<!--js for copying jwt to user's clipboard adapted from:-->
+<!--https://www.freecodecamp.org/news/copy-text-to-clipboard-javascript/-->
+<script>
+  let text = document.getElementById('jwt').innerHTML;
+  let btn = document.getElementById('btn');
+  btn.addEventListener('click', function handleClick() {
+      btn.textContent = 'Copied!';
+  });
+  const copyContent = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      console.log('Content copied to clipboard');
+    } catch (err) {
+      console.error('Failed to copy: ', err);
+    }
+  }
+</script>
+{% endblock %}
