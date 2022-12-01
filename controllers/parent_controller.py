@@ -1,16 +1,16 @@
 from __future__ import annotations
-from typing import Union
-
+from typing import Union, TYPE_CHECKING
 from flask import Response, request
 from google.cloud import client as gcc
-
 from helpers.make_res import build_response
 from helpers.exceptions import IdError
+from helpers.status_codes import code
 from models.users import User
 from models.dogs import Dog
 from models.toys import Toy
 
-from pprint import pprint
+if TYPE_CHECKING:
+    from controllers.toys import ToyController
 
 
 class Controller:
@@ -18,21 +18,15 @@ class Controller:
         self.client: gcc = client
         self.kind = 'parent'
 
-    def delete(self, _id: int) -> Response:
-        """
-        Deletes an entity from the datastore. Does NOT handle any side effects.
-        These must be handled by child Controllers.  Entity id must be pre-validated
-        :param _id: id of the entity in the datastore
-        :return: Response object
-        """
+    def delete(self, _id: int, tc: ToyController = None) -> Response:
         key = self.client.key(self.kind, _id)
         data = self.client.get(key)
 
         if not data:
-            return build_response(f'{self.kind[:-1]} not found', 404)
+            return build_response(f'{self.kind[:-1]} not found', code.not_found)
 
         self.client.delete(key)
-        return build_response('', 204)
+        return build_response('', code.no_content)
 
     def update(self, req: request, _id: int) -> Response:
 
@@ -44,7 +38,7 @@ class Controller:
             self.client.put(ds_entity)
 
         entity_obj = self.get_obj_by_id(_id)
-        return build_response(entity_obj.hash(req.url_root), 200)
+        return build_response(entity_obj.hash(req.url_root), code.ok)
 
     def get_obj_by_id(self, _id) -> Union[Dog, Toy, User]:
         key = self.client.key(self.kind, _id)
@@ -61,7 +55,7 @@ class Controller:
         return entity
 
     def get_one(self, req: request, _id: int) -> Response:
-        return build_response(self.get_obj_by_id(_id).hash(req.url_root), 200)
+        return build_response(self.get_obj_by_id(_id).hash(req.url_root), code.ok)
 
     def get_all(self, req: request, kind: str) -> list[Union[User]]:
         query = self.client.query(kind=kind)

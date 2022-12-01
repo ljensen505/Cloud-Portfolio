@@ -4,6 +4,7 @@ from flask import Flask, Response, request, make_response, render_template,\
 from google.cloud import datastore
 from authlib.integrations.flask_client import OAuth
 from helpers.auth0 import auth0_app
+from helpers.status_codes import code
 from controllers.auth import AuthController
 from controllers.users import UserController
 from blueprints import auth as auth_bp,\
@@ -50,7 +51,7 @@ def login() -> Response:
         )
     else:
         res = make_response(f'Method {request.method} not allowed.')
-        res.status_code = 405
+        res.status_code = code.method_not_allowed
         return res
 
 

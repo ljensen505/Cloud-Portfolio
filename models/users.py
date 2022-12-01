@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field, asdict
 from helpers.exceptions import ParamError
+from helpers.status_codes import code
 
 
 @dataclass
@@ -12,9 +13,9 @@ class User:
 
     def __post_init__(self):
         if not self.name or not self.email or not self.user_id:
-            raise ParamError('Insufficient parameters')
+            raise ParamError({'msg': 'Insufficient parameters'}, code.forbidden)
         if not isinstance(self.name, str):
-            raise ParamError('Invalid name: is that a string?')
+            raise ParamError({'msg': 'Invalid name: is that a string?'}, code.forbidden)
 
     def hash(self, path: str):
         user = asdict(self)

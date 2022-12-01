@@ -1,5 +1,6 @@
 from dataclasses import dataclass, asdict
 from helpers.exceptions import ParamError
+from helpers.status_codes import code
 
 
 @dataclass
@@ -14,20 +15,26 @@ class Toy:
 
     def __post_init__(self):
         err_msg = ''
+        if self.price is None:
+            err_msg = 'You must specify a price. 0.00 is acceptable.'
         try:
-            self.price = float(self.price)
+            self.price = round(float(self.price), 2)
+            if self.price < 0:
+                err_msg = 'Price cannot be negative. You can use 0.00 as a placeholder.'
         except TypeError:
             err_msg = 'Did that toy have a valid price tag?'
         if not self.name or not self.description:
             err_msg = 'Does this toy have a name?'
         elif not isinstance(self.name, str) or not isinstance(self.description, str):
             err_msg = 'Name and Description must be strings'
+        elif len(self.name) > 25:
+            err_msg = 'name is limited to 25 characters'
 
         if err_msg:
             raise ParamError({
                 "code": "invalid request",
                 "description": err_msg
-            }, 403)
+            }, code.forbidden)
 
     def hash(self, path: str):
         toy = asdict(self)

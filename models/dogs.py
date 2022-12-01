@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field, asdict
 from helpers.exceptions import ParamError
+from helpers.status_codes import code
 
 
 @dataclass
@@ -18,14 +19,16 @@ class Dog:
             err_msg = 'Does your dog have a name?'
         elif not self.breed:
             err_msg = 'Does your dog have a breed?'
-        elif not isinstance(self.name, str):
-            err_msg = 'Name must be a string'
+        elif not isinstance(self.name, str) or not isinstance(self.breed, str):
+            err_msg = 'Name and breed must both be strings'
+        elif len(self.name) > 25 or len(self.breed) > 25:
+            err_msg = 'Invalid: that name or breed has too many characters. Max: 25'
 
         if err_msg:
             raise ParamError({
                 "code": "invalid request",
                 "description": err_msg
-            }, 403)
+            }, code.forbidden)
 
     def hash(self, path: str):
         dog = asdict(self)

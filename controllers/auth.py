@@ -1,6 +1,7 @@
 import requests as r
 from flask import request, Response, make_response
 from helpers.verify_jwt import verify_jwt
+from helpers.status_codes import code
 from google.cloud import client
 from helpers.auth0 import auth0_app
 
@@ -24,12 +25,12 @@ class AuthController:
         headers = {'content_type': 'application/json'}
         auth0_res = r.post(f'https://{self.domain}/oauth/token', json=body, headers=headers)
         res = make_response(auth0_res.json())
-        res.status_code = 200
+        res.status_code = code.ok
         res.content_type = 'application/json'
         return res
 
     def decode(self, req: request) -> Response:
         payload = verify_jwt(req, self.domain, self.client_id)
         res = make_response(payload)
-        res.status_code = 200
+        res.status_code = code.ok
         return res

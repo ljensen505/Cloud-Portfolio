@@ -5,6 +5,7 @@ from google.cloud import client as gcc, datastore
 from models.dogs import Dog
 from controllers.parent_controller import Controller
 from helpers.make_res import build_response
+from helpers.status_codes import code
 
 if TYPE_CHECKING:
     from controllers.users import UserController
@@ -12,7 +13,6 @@ if TYPE_CHECKING:
     from models.toys import Toy
 
 from datetime import date
-from pprint import pprint
 
 
 class DogController(Controller):
@@ -21,8 +21,6 @@ class DogController(Controller):
         self.kind = 'dogs'
 
     def give_toy(self, dog: Dog, toy: Toy, tc: ToyController) -> Response:
-        print(f'Giving {dog.name} a {toy.name}')
-
         with self.client.transaction():
             key = self.client.key(self.kind, dog.id)
             ds_dog = self.client.get(key)
@@ -31,13 +29,32 @@ class DogController(Controller):
 
         tc.assign_toy(toy, dog)
 
-        return build_response('', 204)
+        return build_response('', code.no_content)
 
-    def delete(self, toy_id: int) -> Response:
-        res = Controller.delete(self, toy_id)
+    def return_toy(self, dog: Dog, toy: Toy) -> None:
+        with self.client.transaction():
+            key = self.client.key(self.kind, dog.id)
+            ds_dog = self.client.get(key)
+            ds_dog['toys'].remove(toy.id)
+            self.client.put(ds_dog)
 
-        # TODO: handle deleting relation, if any
-        print(f'Deleting {self.kind[:-1]}: {toy_id}')
+    def take_toy(self, dog: Dog, toy: Toy, tc: ToyController) -> Response:
+        with self.client.transaction():
+            key = self.client.key(self.kind, dog.id)
+            ds_dog = self.client.get(key)
+            ds_dog['toys'].remove(toy.id)
+            self.client.put(ds_dog)
+
+        tc.free_toy(toy)
+        return build_response('', code.no_content)
+
+    def delete(self, _id: int, tc: ToyController = None) -> Response:
+        dog = self.get_obj_by_id(_id)
+        for toy_id in dog.toys:
+            toy = tc.get_obj_by_id(toy_id)
+            tc.free_toy(toy)
+
+        res = Controller.delete(self, _id)
         return res
 
     def replace(self, req: request, owner_id: str, _id):
@@ -58,7 +75,7 @@ class DogController(Controller):
             self.client.put(ds_dog)
 
         dog = self.get_obj_by_id(_id)
-        return build_response(dog.hash(req.url_root), 200)
+        return build_response(dog.hash(req.url_root), code.ok)
 
     def get_dogs(self, req: request, payload: dict) -> Response:
         owner_id = payload.get('sub')
@@ -74,7 +91,7 @@ class DogController(Controller):
                     dog['toys'][i] = {'id': toy_id,
                                       'self': f'{req.url_root}toys/{toy_id}'}
 
-        return build_response(dogs, 200)
+        return build_response(dogs, code.ok)
 
     def _add_dog(self, dog: Dog) -> None:
         with self.client.transaction():
@@ -91,20 +108,19 @@ class DogController(Controller):
             self.client.put(ds_dog)
         dog.id = ds_dog.key.id
 
-    def post_one(self, req: request, ur: UserController, payload: dict) -> Response:
+    def post_one(self, req: request, payload: dict) -> Response:
         data = req.get_json()
-        data['adoption_date'] = date.today().strftime("%m/%d/%y")
-        data['owner_id'] = payload.get('sub')
-        data['owner_name'] = payload.get('name')
+        data = {'name': data.get('name'), 'breed': data.get('breed'),
+                'adoption_date': date.today().strftime("%m/%d/%y"), 'owner_id': payload.get('sub'),
+                'owner_name': payload.get('name')}
 
         try:
             dog = self.build_entity(data)
         except KeyError:
-            return build_response('invalid attributes, check documentation', 403)
+            return build_response('invalid attributes, check documentation', code.forbidden)
 
         self._add_dog(dog)
-        # ur.adopt(dog)
-        return build_response(dog.hash(req.url_root), 201)
+        return build_response(dog.hash(req.url_root), code.created)
 
     @classmethod
     def build_entity(cls, data, _id=None) -> Dog:
@@ -114,6 +130,6 @@ class DogController(Controller):
             owner_id=data.get('owner_id'),
             owner_name=data.get('owner_name'),
             adoption_date=data.get('adoption_date'),
-            toys=data.get('toys'),
+            toys=data.get('toys', list()),
             id=_id
         )

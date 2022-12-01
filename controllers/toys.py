@@ -1,18 +1,16 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING
 from flask import Response, request
 from google.cloud import client as gcc, datastore
-# from model.users import User
-from models.dogs import Dog
 from models.toys import Toy
 from controllers.parent_controller import Controller
 from helpers.make_res import build_response
+from helpers.status_codes import code
 
 if TYPE_CHECKING:
     from controllers.users import UserController
     from controllers.dogs import DogController
-
-from pprint import pprint
+    from models.dogs import Dog
 
 
 class ToyController(Controller):
@@ -20,11 +18,13 @@ class ToyController(Controller):
         Controller.__init__(self, client)
         self.kind = 'toys'
 
-    def delete(self, toy_id: int) -> Response:
-        res = Controller.delete(self, toy_id)
-
-        # TODO: handle deleting relation, if any
-        print(f'Deleting {self.kind[:-1]}: {toy_id}')
+    def delete(self, toy_id: int, dc: DogController = None) -> Response:
+        toy = self.get_obj_by_id(toy_id)
+        if toy.in_use:
+            dog = dc.get_obj_by_id(toy.used_by)
+            dc.return_toy(dog, toy)
+        Controller.delete(self, toy_id)
+        res = build_response('', code.no_content)
         return res
 
     def assign_toy(self, toy: Toy, dog: Dog) -> None:
@@ -33,6 +33,14 @@ class ToyController(Controller):
             ds_toy = self.client.get(key)
             ds_toy['in_use'] = True
             ds_toy['used_by'] = dog.id
+            self.client.put(ds_toy)
+
+    def free_toy(self, toy: Toy) -> None:
+        with self.client.transaction():
+            key = self.client.key(self.kind, toy.id)
+            ds_toy = self.client.get(key)
+            ds_toy['in_use'] = False
+            ds_toy['used_by'] = None
             self.client.put(ds_toy)
 
     def replace(self, req: request, purchaser_id: str, _id: int) -> Response:
@@ -51,7 +59,7 @@ class ToyController(Controller):
             self.client.put(ds_toy)
 
         toy = self.get_obj_by_id(_id)
-        return build_response(toy.hash(req.url_root), 200)
+        return build_response(toy.hash(req.url_root), code.ok)
 
     def get_toys(self, req: request, ur: UserController) -> Response:
         query = self.client.query(kind=self.kind)
@@ -81,7 +89,7 @@ class ToyController(Controller):
         output = {self.kind: toys}
         if next_url:
             output["next"] = next_url
-        return build_response(output, 200)
+        return build_response(output, code.ok)
 
     def _add_toy(self, toy: Toy) -> None:
         with self.client.transaction():
@@ -107,11 +115,11 @@ class ToyController(Controller):
         try:
             toy = self.build_entity(data)
         except KeyError:
-            return build_response('invalid attributes, check documentation', 403)
+            return build_response('invalid attributes, check documentation', code.forbidden)
 
         self._add_toy(toy)
 
-        return build_response(toy.hash(req.url_root), 201)
+        return build_response(toy.hash(req.url_root), code.created)
 
     @classmethod
     def build_entity(cls, data, _id=None) -> Toy:

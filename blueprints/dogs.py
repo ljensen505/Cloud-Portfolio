@@ -5,6 +5,7 @@ from controllers.users import UserController
 from controllers.toys import ToyController
 from helpers.verify_jwt import verify_jwt, AuthError
 from helpers.make_res import build_response
+from helpers.status_codes import code
 from google.cloud import datastore
 from helpers.auth0 import auth0_app
 from datetime import date
@@ -35,7 +36,7 @@ def dogs() -> Response:
         except ParamError as e:
             return build_response(e.error, e.status_code)
 
-        return dc.post_one(request, uc, payload)
+        return dc.post_one(request, payload)
 
 
 @bp.route('/<int:dog_id>', methods=['GET', 'DELETE', 'PATCH', 'PUT'])
@@ -56,7 +57,7 @@ def one_dog(dog_id: int) -> Response:
     owner_oauth_id = payload['sub']
 
     if owner_oauth_id != test_dog.owner_id:
-        return build_response('Not Authorized', 401)
+        return build_response('Not Authorized', code.unauthorized)
 
     if request.method == 'GET':
         return dc.get_one(request, dog_id)
@@ -67,11 +68,11 @@ def one_dog(dog_id: int) -> Response:
         try:
             test_build(payload)
         except Exception as e:
-            return build_response(str(e), 400)
+            return build_response(str(e), code.not_acceptable)
         return dc.replace(request, owner_oauth_id, dog_id)
 
     elif request.method == 'DELETE':
-        return dc.delete(dog_id)
+        return dc.delete(dog_id, tc)
 
 
 @bp.route('/<int:dog_id>/toys', methods=['GET'])
@@ -87,14 +88,14 @@ def toys(dog_id: int):
         return build_response(e.error, e.status_code)
 
     if dog.owner_id != owner_id:
-        return build_response('Not Authorized', 403)
+        return build_response('Not Authorized', code.forbidden)
 
     if request.method == 'GET':
         toy_list = dog.toys
         for i, toy in enumerate(toy_list):
             toy_list[i] = {'id': toy,
                            'self': f'{request.url_root}toys/{toy}'}
-        return build_response(toy_list, 200)
+        return build_response(toy_list, code.ok)
 
 
 @bp.route('/<int:dog_id>/toys/<int:toy_id>', methods=['DELETE', 'POST'])
@@ -115,14 +116,21 @@ def dog_has_toys(dog_id: int, toy_id: int):
         if isinstance(e, IdError):
             return build_response(e.error, e.status_code)
         else:
-            return build_response('Could not validate that toy. Check documentation and request.', 400)
+            return build_response('Could not validate that toy. Check documentation and request.', code.not_acceptable)
 
     if request.method == 'POST':
         if toy.in_use:
-            return build_response('That toy is already in use', 400)
+            return build_response('That toy is already in use', code.not_acceptable)
         elif owner_id != dog.owner_id:
-            return build_response('Not Authorized', 403)
+            return build_response('Not Authorized', code.forbidden)
         return dc.give_toy(dog, toy, tc)
+    elif request.method == 'DELETE':
+        if dog.id != toy.used_by:
+            return build_response('That dog does not have that toy', code.not_acceptable)
+        elif owner_id != dog.owner_id:
+            return build_response("Only the dog's owner can take a toy from it", code.forbidden)
+
+        return dc.take_toy(dog, toy, tc)
 
 
 def test_build(payload: dict) -> None:
