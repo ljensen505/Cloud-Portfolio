@@ -16,17 +16,18 @@ if TYPE_CHECKING:
 class Controller:
     def __init__(self, client: gcc) -> None:
         self.client: gcc = client
-        self.kind = 'parent'
+        self.kind = "parent"
+        self.fixed = []  # a list of non-changeable attributes
 
     def delete(self, _id: int, tc: ToyController = None) -> Response:
         key = self.client.key(self.kind, _id)
         data = self.client.get(key)
 
         if not data:
-            return build_response(f'{self.kind[:-1]} not found', code.not_found)
+            return build_response(f"{self.kind[:-1]} not found", code.not_found)
 
         self.client.delete(key)
-        return build_response('', code.no_content)
+        return build_response("", code.no_content)
 
     def update(self, req: request, _id: int) -> Response:
 
@@ -34,7 +35,8 @@ class Controller:
             key = self.client.key(self.kind, _id)
             ds_entity = self.client.get(key)
             for key, value in req.get_json().items():
-                ds_entity[key] = value
+                if key not in self.fixed:
+                    ds_entity[key] = value
             self.client.put(ds_entity)
 
         entity_obj = self.get_obj_by_id(_id)
@@ -45,10 +47,13 @@ class Controller:
         ds_entity = self.client.get(key)
 
         if ds_entity is None:
-            raise IdError({
-                "code": "invalid id",
-                "description": f'Could not find a {self.kind[:-1]} with that id'
-            }, 404)
+            raise IdError(
+                {
+                    "code": "invalid id",
+                    "description": f"Could not find a {self.kind[:-1]} with that id",
+                },
+                404,
+            )
 
         entity = self.build_entity(ds_entity, _id=ds_entity.key.id)
 
@@ -57,11 +62,16 @@ class Controller:
     def get_one(self, req: request, _id: int) -> Response:
         return build_response(self.get_obj_by_id(_id).hash(req.url_root), code.ok)
 
+    def count_all(self, req: request) -> int:
+        return len(self.get_all(req, self.kind))
+
     def get_all(self, req: request, kind: str) -> list[Union[User]]:
         query = self.client.query(kind=kind)
         results = list(query.fetch())
-        entities = [self.build_entity(entity, _id=entity.key.id).hash(
-            req.url_root) for entity in results]
+        entities = [
+            self.build_entity(entity, _id=entity.key.id).hash(req.url_root)
+            for entity in results
+        ]
 
         return entities
 
