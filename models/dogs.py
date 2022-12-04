@@ -26,7 +26,7 @@ class Dog:
 
         if err_msg:
             raise ParamError(
-                {"code": "invalid request", "description": err_msg}, code.forbidden
+                {"code": "invalid request", "description": err_msg}, code.bad_request
             )
 
     def hash(self, path: str):

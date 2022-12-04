@@ -11,6 +11,7 @@ from models.toys import Toy
 
 if TYPE_CHECKING:
     from controllers.toys import ToyController
+    from controllers.users import UserController
 
 
 class Controller:
@@ -19,7 +20,9 @@ class Controller:
         self.kind = "parent"
         self.fixed = []  # a list of non-changeable attributes
 
-    def delete(self, _id: int, tc: ToyController = None) -> Response:
+    def delete(
+        self, _id: int, tc: ToyController = None, uc: UserController = None
+    ) -> Response:
         key = self.client.key(self.kind, _id)
         data = self.client.get(key)
 
@@ -60,7 +63,9 @@ class Controller:
         return entity
 
     def get_one(self, req: request, _id: int) -> Response:
-        return build_response(self.get_obj_by_id(_id).hash(req.url_root), code.ok)
+        entity = self.get_obj_by_id(_id)
+        res_dict = entity.hash(req.url_root)
+        return build_response(res_dict, code.ok)
 
     def count_all(self, req: request) -> int:
         return len(self.get_all(req, self.kind))

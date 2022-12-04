@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from controllers.users import UserController
     from controllers.toys import ToyController
     from models.toys import Toy
+    from models.users import User
 
 from datetime import date
 
@@ -49,11 +50,16 @@ class DogController(Controller):
         tc.free_toy(toy)
         return build_response("", code.no_content)
 
-    def delete(self, _id: int, tc: ToyController = None) -> Response:
+    def delete(
+        self, _id: int, tc: ToyController = None, uc: UserController = None
+    ) -> Response:
         dog = self.get_obj_by_id(_id)
         for toy_id in dog.toys:
             toy = tc.get_obj_by_id(toy_id)
             tc.free_toy(toy)
+
+        user: User = uc.get_by_user_id(dog.owner_id)
+        uc.return_dog(user, dog)
 
         res = Controller.delete(self, _id)
         return res
@@ -137,7 +143,7 @@ class DogController(Controller):
             self.client.put(ds_dog)
         dog.id = ds_dog.key.id
 
-    def post_one(self, req: request, payload: dict) -> Response:
+    def post_one(self, req: request, payload: dict, uc: UserController) -> Response:
         data = req.get_json()
         data = {
             "name": data.get("name"),
@@ -155,6 +161,8 @@ class DogController(Controller):
             )
 
         self._add_dog(dog)
+        user: User = uc.get_by_user_id(payload.get("sub"))
+        uc.adopt(user, dog)
         return build_response(dog.hash(req.url_root), code.created)
 
     @classmethod

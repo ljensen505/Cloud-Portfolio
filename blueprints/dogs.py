@@ -41,7 +41,7 @@ def dogs() -> Response:
         except ParamError as e:
             return build_response(e.error, e.status_code)
 
-        return dc.post_one(request, payload)
+        return dc.post_one(request, payload, uc)
 
 
 @bp.route("/<int:dog_id>", methods=["GET", "DELETE", "PATCH", "PUT"])
@@ -82,7 +82,7 @@ def one_dog(dog_id: int) -> Response:
         return dc.replace(request, owner_oauth_id, dog_id)
 
     elif request.method == "DELETE":
-        return dc.delete(dog_id, tc)
+        return dc.delete(dog_id, tc, uc)
 
 
 @bp.route("/<int:dog_id>/toys", methods=["GET"])
@@ -143,7 +143,7 @@ def dog_has_toys(dog_id: int, toy_id: int):
     if request.method == "POST":
         if toy.in_use:
             return build_response(
-                {"Error": "That toy is already in use"}, code.not_acceptable
+                {"Error": "That toy is already in use"}, code.forbidden
             )
         elif owner_id != dog.owner_id:
             return build_response({"Error": "Not Authorized"}, code.forbidden)
@@ -151,7 +151,7 @@ def dog_has_toys(dog_id: int, toy_id: int):
     elif request.method == "DELETE":
         if dog.id != toy.used_by:
             return build_response(
-                {"Error": "That dog does not have that toy"}, code.not_acceptable
+                {"Error": "That dog does not have that toy"}, code.forbidden
             )
         elif owner_id != dog.owner_id:
             return build_response(

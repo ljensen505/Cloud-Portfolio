@@ -19,7 +19,9 @@ class ToyController(Controller):
         self.kind = "toys"
         self.fixed = ["purchased_by", "id", "in_use", "used_by"]
 
-    def delete(self, toy_id: int, dc: DogController = None) -> Response:
+    def delete(
+        self, toy_id: int, dc: DogController = None, uc: UserController = None
+    ) -> Response:
         toy = self.get_obj_by_id(toy_id)
         if toy.in_use:
             dog = dc.get_obj_by_id(toy.used_by)

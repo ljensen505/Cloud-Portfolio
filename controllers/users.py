@@ -5,12 +5,38 @@ from controllers.parent_controller import Controller
 from helpers.make_res import build_response
 from helpers.status_codes import code
 from models.users import User
+from models.dogs import Dog
 
 
 class UserController(Controller):
     def __init__(self, client: gcc) -> None:
         Controller.__init__(self, client)
         self.kind = "users"
+
+    def get_one(self, req: request, _id) -> Response:
+        res = Controller.get_one(self, req, _id)
+        user_data = res.get_json()
+        if user_data["dogs"]:
+            for i, dog_id in enumerate(user_data["dogs"]):
+                user_data["dogs"][i] = {
+                    "id": dog_id,
+                    "self": f"{req.url_root}dogs/{dog_id}",
+                }
+        return build_response(user_data, res.status_code)
+
+    def adopt(self, user: User, dog: Dog) -> None:
+        with self.client.transaction():
+            key = self.client.key(self.kind, user.id)
+            ds_user = self.client.get(key)
+            ds_user["dogs"].append(dog.id)
+            self.client.put(ds_user)
+
+    def return_dog(self, user: User, dog: Dog) -> None:
+        with self.client.transaction():
+            key = self.client.key(self.kind, user.id)
+            ds_user = self.client.get(key)
+            ds_user["dogs"].remove(dog.id)
+            self.client.put(ds_user)
 
     def get_by_user_id(self, user_id: str) -> User:
         query = self.client.query(kind=self.kind)
